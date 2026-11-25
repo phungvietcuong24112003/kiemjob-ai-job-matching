@@ -82,12 +82,12 @@
         "c#", ".net", ".net core", "asp.net", "python", "django", "flask", "fastapi",
         "node.js", "express", "nest.js", "php", "laravel", "symfony", "ruby",
         "ruby on rails", "go", "rust", "scala", "c++", "c", "rest api", "graphql",
-        "grpc", "microservices", "oop", "design patterns", "websocket", "backend"
+        "grpc", "microservices", "oop", "design patterns", "websocket"
       ],
       "it_frontend": [
         "javascript", "typescript", "html", "css", "sass", "tailwindcss", "bootstrap",
         "react", "next.js", "vue", "nuxt.js", "angular", "svelte", "redux", "zustand",
-        "jquery", "frontend", "responsive design", "ui/ux"
+        "jquery", "responsive design", "ui/ux"
       ],
       "it_mobile": [
         "flutter", "react native", "swift", "swiftui", "kotlin", "android", "ios",

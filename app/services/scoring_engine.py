@@ -3,12 +3,16 @@ from typing import Dict, List, Optional, Tuple
 
 from app.core.config import settings
 from app.schemas.match_schema import (
+    ConfidenceDetail,
     EducationEvaluation,
     ExperienceEvaluation,
     MatchRequest,
     MatchResponse,
+    MissingRequirementItem,
+    RecommendationDetail,
     SkillCategory,
     SkillMatchItem,
+    StructuredStrengthItem,
 )
 from app.services.evidence_verifier import EvidenceVerifier
 from app.services.exp_edu_analyzer import ExpEduAnalyzer
@@ -133,6 +137,15 @@ class ScoringEngine:
                 supplementary_skill_score=None,
                 data_sufficiency="insufficient",
                 confidence="low",
+                confidence_detail=ConfidenceDetail(
+                    level="LOW",
+                    reason="Nội dung CV quá ngắn (< 50 ký tự) hoặc tin tuyển dụng thiếu mô tả/yêu cầu.",
+                ),
+                recommendation=RecommendationDetail(
+                    level="INSUFFICIENT_DATA",
+                    label="Chưa có đủ thông tin để đánh giá",
+                    description="Chưa có đủ dữ liệu văn bản từ CV hoặc JD. Nhà tuyển dụng nên mở file PDF gốc hoặc yêu cầu ứng viên bổ sung hồ sơ.",
+                ),
                 experience_evaluation=ExperienceEvaluation(
                     assessment="Không đủ dữ liệu văn bản từ CV hoặc tin tuyển dụng để đánh giá."
                 ),
@@ -142,7 +155,7 @@ class ScoringEngine:
                 ),
                 weaknesses=["Nội dung CV quá ngắn (< 50 ký tự) hoặc tin tuyển dụng thiếu thông tin mô tả/yêu cầu."],
                 recommendations=["Kiểm tra lại file PDF CV hoặc bổ sung đầy đủ mô tả/kỹ năng cho tin tuyển dụng."],
-                analysis_summary="Không đủ dữ liệu để thực hiện đánh giá mức độ phù hợp.",
+                analysis_summary="Chưa có đủ dữ liệu để thực hiện đánh giá mức độ phù hợp.",
                 algorithm_version=settings.ALGORITHM_VERSION,
             )
 
@@ -162,6 +175,7 @@ class ScoringEngine:
             cv_raw_text=cv_raw,
             parsed_profile_skills=parsed_skills,
             data_sufficient=True,
+            cv_sections=cv_sections,
         )
 
         # Phân chia vào 3 nhóm điểm không trùng lặp
@@ -239,22 +253,33 @@ class ScoringEngine:
         required_skills = [i for i in skill_items if i.is_required]
         preferred_skills = [i for i in skill_items if not i.is_required]
 
-        # Sinh nhận xét minh bạch dựa trên dữ liệu đã tính
-        strengths, weaknesses, recommendations, summary = self._build_narratives(
-            overall_score=overall_score,
-            jd_title=jd_title,
-            matched_skills=matched_skills,
-            missing_skills=missing_skills,
-            required_skills=required_skills,
-            exp_eval=exp_out.evaluation,
-            edu_eval=edu_out.evaluation,
-        )
+        jd_sentence_map = {s.name: s.jd_sentence for s in jd_skills}
 
-        confidence = "high"
-        if len(cv_raw) < 150 or not jd_skills:
-            confidence = "medium"
-        if any(i.evidence_status == "unclear_evidence" for i in matched_skills) and len(matched_skills) <= 1:
-            confidence = "medium"
+        # Tính độ tin cậy độc lập với điểm tổng
+        conf_detail = self._evaluate_confidence(
+            cv_raw=cv_raw,
+            cv_sections=cv_sections,
+            jd_skills=jd_skills,
+            matched_skills=matched_skills,
+            exp_eval=exp_out.evaluation,
+        )
+        confidence = conf_detail.level.lower()
+
+        # Sinh nhận xét có cấu trúc, bằng chứng và đề xuất cho NTD
+        structured_strengths, missing_requirements, recommendation, strengths, weaknesses, recommendations, summary = (
+            self._build_structured_explanations(
+                overall_score=overall_score,
+                jd_title=jd_title,
+                skill_items=skill_items,
+                matched_skills=matched_skills,
+                missing_skills=missing_skills,
+                required_skills=required_skills,
+                jd_sentence_map=jd_sentence_map,
+                exp_eval=exp_out.evaluation,
+                edu_eval=edu_out.evaluation,
+                conf_detail=conf_detail,
+            )
+        )
 
         return MatchResponse(
             overall_score=overall_score,
@@ -266,6 +291,7 @@ class ScoringEngine:
             supplementary_skill_score=supplementary_skill_score,
             data_sufficiency="sufficient",
             confidence=confidence,
+            confidence_detail=conf_detail,
             matched_skills=matched_skills,
             missing_skills=missing_skills,
             required_skills=required_skills,
@@ -275,55 +301,239 @@ class ScoringEngine:
             strengths=strengths,
             weaknesses=weaknesses,
             recommendations=recommendations,
+            structured_strengths=structured_strengths,
+            missing_requirements=missing_requirements,
+            recommendation=recommendation,
             evidence_from_cv=evidence_items,
             analysis_summary=summary,
             algorithm_version=settings.ALGORITHM_VERSION,
         )
 
     @staticmethod
-    def _build_narratives(
+    def _evaluate_confidence(
+        cv_raw: str,
+        cv_sections: dict,
+        jd_skills: list,
+        matched_skills: List[SkillMatchItem],
+        exp_eval: ExperienceEvaluation,
+    ) -> ConfidenceDetail:
+        reasons: List[str] = []
+        has_exp_or_proj = bool(
+            (cv_sections.get("experience", "") or "").strip()
+            or (cv_sections.get("projects", "") or "").strip()
+        )
+        unclear_count = sum(1 for s in matched_skills if s.evidence_status == "unclear_evidence")
+
+        if len(cv_raw) < 120:
+            reasons.append("Nội dung CV quá ngắn, thiếu chi tiết về quá trình làm việc.")
+        if exp_eval.candidate_years is None and not has_exp_or_proj:
+            reasons.append("Chưa xác định được kinh nghiệm làm việc hoặc dự án thực tế trong CV.")
+        if not jd_skills:
+            reasons.append("Tin tuyển dụng chưa liệt kê rõ kỹ năng yêu cầu.")
+
+        if reasons:
+            return ConfidenceDetail(level="LOW", reason=" ".join(reasons))
+
+        med_reasons: List[str] = []
+        if len(cv_raw) < 280:
+            med_reasons.append("CV khá ngắn, thông tin ngữ cảnh còn hạn chế.")
+        if exp_eval.candidate_years is None:
+            med_reasons.append("Chưa ghi rõ tổng số năm kinh nghiệm.")
+        if unclear_count > 0:
+            med_reasons.append(f"Có {unclear_count} kỹ năng chỉ xuất hiện ở dạng liệt kê/gần đúng, chưa rõ bối cảnh sử dụng.")
+
+        if med_reasons:
+            return ConfidenceDetail(level="MEDIUM", reason=" ".join(med_reasons))
+
+        return ConfidenceDetail(
+            level="HIGH",
+            reason="CV và JD đều cung cấp đầy đủ thông tin kỹ năng, kinh nghiệm và có minh chứng rõ ràng.",
+        )
+
+    @staticmethod
+    def _build_structured_explanations(
         overall_score: int,
         jd_title: str,
+        skill_items: List[SkillMatchItem],
         matched_skills: List[SkillMatchItem],
         missing_skills: List[SkillMatchItem],
         required_skills: List[SkillMatchItem],
+        jd_sentence_map: Dict[str, Optional[str]],
         exp_eval: ExperienceEvaluation,
         edu_eval: EducationEvaluation,
-    ) -> Tuple[List[str], List[str], List[str], str]:
-        strengths: List[str] = []
-        weaknesses: List[str] = []
-        recommendations: List[str] = []
+        conf_detail: ConfidenceDetail,
+    ) -> Tuple[
+        List[StructuredStrengthItem],
+        List[MissingRequirementItem],
+        RecommendationDetail,
+        List[str],
+        List[str],
+        List[str],
+        str,
+    ]:
+        structured_strengths: List[StructuredStrengthItem] = []
+        missing_requirements: List[MissingRequirementItem] = []
+        strengths_txt: List[str] = []
+        weaknesses_txt: List[str] = []
+        recs_txt: List[str] = []
 
-        evidenced_req = [s.name for s in matched_skills if s.is_required and s.evidence_status == "evidenced"]
-        evidenced_pref = [s.name for s in matched_skills if not s.is_required and s.evidence_status == "evidenced"]
-        missing_req = [s.name for s in missing_skills if s.is_required]
-        missing_pref = [s.name for s in missing_skills if not s.is_required]
+        # 1. Điểm mạnh có căn cứ
+        evidenced_items = [s for s in matched_skills if s.evidence_status == "evidenced"]
+        for item in evidenced_items[:6]:
+            structured_strengths.append(
+                StructuredStrengthItem(
+                    title=f"Kỹ năng {item.name.upper() if len(item.name) <= 3 else item.name.title()}",
+                    description=item.comment or f"CV có đề cập và minh chứng sử dụng {item.name}, đáp ứng yêu cầu trong JD.",
+                    evidence=item.evidence,
+                )
+            )
 
+        evidenced_req = [s.name for s in evidenced_items if s.is_required]
+        evidenced_pref = [s.name for s in evidenced_items if not s.is_required]
         if evidenced_req:
-            strengths.append(
-                f"Có bằng chứng trực tiếp cho {len(evidenced_req)}/{len(required_skills)} yêu cầu bắt buộc: {', '.join(evidenced_req)}."
+            strengths_txt.append(
+                f"CV có minh chứng trực tiếp cho {len(evidenced_req)}/{len(required_skills)} yêu cầu bắt buộc: {', '.join(evidenced_req)}."
             )
         if evidenced_pref:
-            strengths.append(f"Đáp ứng thêm kỹ năng ưu tiên: {', '.join(evidenced_pref)}.")
+            strengths_txt.append(f"Đáp ứng thêm kỹ năng ưu tiên: {', '.join(evidenced_pref)}.")
+
         if exp_eval.candidate_years is not None and (
             exp_eval.required_min_years is None or exp_eval.candidate_years >= exp_eval.required_min_years
         ):
-            strengths.append(exp_eval.assessment)
+            structured_strengths.append(
+                StructuredStrengthItem(
+                    title="Kinh nghiệm làm việc phù hợp",
+                    description=exp_eval.assessment,
+                    evidence=None,
+                )
+            )
+            strengths_txt.append(exp_eval.assessment)
 
-        if missing_req:
-            weaknesses.append(f"Chưa tìm thấy bằng chứng trong CV cho yêu cầu bắt buộc: {', '.join(missing_req)}.")
-            recommendations.append(f"Phỏng vấn làm rõ kinh nghiệm thực tế của ứng viên với: {', '.join(missing_req)}.")
-        if missing_pref:
-            weaknesses.append(f"Chưa thấy đề cập kỹ năng ưu tiên: {', '.join(missing_pref)}.")
-            recommendations.append(f"Hỏi thêm xem ứng viên đã từng tìm hiểu hoặc sử dụng {', '.join(missing_pref)} chưa.")
+        if edu_eval.meets_requirement and edu_eval.required_education != "Không yêu cầu":
+            structured_strengths.append(
+                StructuredStrengthItem(
+                    title="Học vấn đạt yêu cầu",
+                    description=edu_eval.assessment,
+                    evidence=None,
+                )
+            )
+
+        # 2. Yêu cầu còn thiếu hoặc chưa rõ minh chứng (KHÔNG quy chụp không biết)
+        unclear_items = [s for s in matched_skills if s.evidence_status == "unclear_evidence"]
+        for item in unclear_items:
+            missing_requirements.append(
+                MissingRequirementItem(
+                    title=f"{item.name} (Chưa rõ mức độ sử dụng)",
+                    description=item.comment or f"CV có đề cập đến {item.name} nhưng chưa cung cấp đủ thông tin về bối cảnh sử dụng.",
+                    jd_requirement=jd_sentence_map.get(item.name),
+                    status="unclear_evidence",
+                )
+            )
+            weaknesses_txt.append(
+                f"CV có đề cập {item.name} nhưng chưa có minh chứng rõ ràng về bối cảnh/mức độ sử dụng."
+            )
+
+        for item in missing_skills:
+            req_tag = "bắt buộc" if item.is_required else "ưu tiên"
+            missing_requirements.append(
+                MissingRequirementItem(
+                    title=f"{item.name} ({req_tag})",
+                    description=f"Chưa tìm thấy minh chứng về {item.name} trong CV (tiêu chí {req_tag}).",
+                    jd_requirement=jd_sentence_map.get(item.name),
+                    status="not_found",
+                )
+            )
+            weaknesses_txt.append(f"Chưa tìm thấy minh chứng về {item.name} trong CV (tiêu chí {req_tag}).")
+
+        if exp_eval.required_min_years is not None and exp_eval.required_min_years > 0:
+            if exp_eval.candidate_years is None:
+                missing_requirements.append(
+                    MissingRequirementItem(
+                        title="Thời gian kinh nghiệm",
+                        description=f"JD yêu cầu tối thiểu {exp_eval.required_min_years} năm kinh nghiệm nhưng chưa xác định được số năm từ CV.",
+                        jd_requirement=f"Yêu cầu tối thiểu {exp_eval.required_min_years} năm kinh nghiệm",
+                        status="insufficient_data",
+                    )
+                )
+                weaknesses_txt.append(f"Chưa xác định được số năm kinh nghiệm từ CV (JD yêu cầu {exp_eval.required_min_years} năm).")
+            elif exp_eval.candidate_years < exp_eval.required_min_years:
+                missing_requirements.append(
+                    MissingRequirementItem(
+                        title="Số năm kinh nghiệm",
+                        description=f"Kinh nghiệm ghi nhận trong CV ({exp_eval.candidate_years} năm) thấp hơn ngưỡng JD ({exp_eval.required_min_years} năm).",
+                        jd_requirement=f"Yêu cầu tối thiểu {exp_eval.required_min_years} năm kinh nghiệm",
+                        status="not_found",
+                    )
+                )
+
         if not edu_eval.meets_requirement:
-            weaknesses.append(edu_eval.assessment)
+            missing_requirements.append(
+                MissingRequirementItem(
+                    title="Yêu cầu học vấn",
+                    description=edu_eval.assessment,
+                    jd_requirement=edu_eval.required_education,
+                    status="not_found",
+                )
+            )
+            weaknesses_txt.append(edu_eval.assessment)
 
-        if not recommendations:
-            recommendations.append("Hồ sơ đáp ứng tốt các tiêu chí chính; nên mời phỏng vấn chuyên môn để kiểm tra độ sâu.")
+        # 3. Đề xuất cho Nhà tuyển dụng (kết hợp điểm số + độ tin cậy + kỹ năng bắt buộc)
+        missing_req_names = [s.name for s in missing_skills if s.is_required]
+        if conf_detail.level == "LOW":
+            rec = RecommendationDetail(
+                level="INSUFFICIENT_DATA",
+                label="Chưa có đủ thông tin để đánh giá",
+                description=(
+                    f"Độ tin cậy thấp ({conf_detail.reason}). Nhà tuyển dụng nên đọc trực tiếp file PDF gốc "
+                    "hoặc trao đổi thêm với ứng viên trước khi kết luận."
+                ),
+            )
+            recs_txt.append(rec.description)
+        elif overall_score >= 70 and not missing_req_names and not unclear_items:
+            rec = RecommendationDetail(
+                level="CONSIDER_INTERVIEW",
+                label="Nên cân nhắc phỏng vấn",
+                description=(
+                    f"Ứng viên đạt {overall_score}/100 và có minh chứng trực tiếp cho các yêu cầu cốt lõi. "
+                    "Nên cân nhắc mời phỏng vấn kỹ thuật để đánh giá chiều sâu."
+                ),
+            )
+            recs_txt.append(rec.description)
+        elif overall_score >= 60:
+            focus = ", ".join((missing_req_names + [u.name for u in unclear_items])[:4])
+            rec = RecommendationDetail(
+                level="CONSIDER_INTERVIEW",
+                label="Cân nhắc phỏng vấn (cần xác minh thêm)",
+                description=(
+                    f"Ứng viên đạt {overall_score}/100. Nên cân nhắc phỏng vấn và tập trung xác minh thêm về: {focus}."
+                    if focus
+                    else f"Ứng viên đạt {overall_score}/100. Nên phỏng vấn để kiểm tra kinh nghiệm thực tế."
+                ),
+            )
+            recs_txt.append(rec.description)
+        else:
+            rec = RecommendationDetail(
+                level="NEED_MORE_REVIEW",
+                label="Cần xem xét thêm",
+                description=(
+                    f"Mức độ khớp hiện tại là {overall_score}/100 do chưa tìm thấy nhiều minh chứng phù hợp với JD. "
+                    "Nhà tuyển dụng nên xem xét thêm hồ sơ gốc nếu muốn cân nhắc cho vị trí khác hoặc đào tạo lại."
+                ),
+            )
+            recs_txt.append(rec.description)
 
+        # 4. Nhận định tổng quan nhất quán với điểm số & độ tin cậy
         level_label = (
-            "Phù hợp cao" if overall_score >= 75 else ("Phù hợp một phần" if overall_score >= 50 else "Mức độ phù hợp thấp")
+            "mức độ phù hợp cao"
+            if overall_score >= 75
+            else ("mức độ phù hợp khá" if overall_score >= 55 else "mức độ phù hợp thấp")
         )
-        summary = f"{level_label} ({overall_score}/100) cho vị trí {jd_title}. {exp_eval.assessment}"
-        return strengths, weaknesses, recommendations, summary
+        req_total = len(required_skills)
+        req_hit = len(evidenced_req)
+        skill_part = f"Đáp ứng có minh chứng {req_hit}/{req_total} yêu cầu bắt buộc" if req_total > 0 else "Đã đối chiếu nội dung CV với JD"
+        summary = (
+            f"Ứng viên có {level_label} ({overall_score}/100) với vị trí {jd_title}. "
+            f"{skill_part}. {exp_eval.assessment}"
+        )
+
+        return structured_strengths, missing_requirements, rec, strengths_txt, weaknesses_txt, recs_txt, summary

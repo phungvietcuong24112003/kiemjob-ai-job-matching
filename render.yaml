@@ -13,4 +13,4 @@ services:
       - key: INTERNAL_SECRET_KEY
         generateValue: true
       - key: ALGORITHM_VERSION
-        value: v1-nlp-tfidf
+        value: v1.1-nlp-explain

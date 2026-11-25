@@ -73,6 +73,30 @@ class EducationEvaluation(BaseModel):
     assessment: str = ""
 
 
+class ConfidenceDetail(BaseModel):
+    level: Literal["HIGH", "MEDIUM", "LOW"] = "HIGH"
+    reason: str = ""
+
+
+class StructuredStrengthItem(BaseModel):
+    title: str
+    description: str
+    evidence: Optional[str] = None
+
+
+class MissingRequirementItem(BaseModel):
+    title: str
+    description: str
+    jd_requirement: Optional[str] = None
+    status: Literal["not_found", "unclear_evidence", "insufficient_data"] = "not_found"
+
+
+class RecommendationDetail(BaseModel):
+    level: Literal["CONSIDER_INTERVIEW", "NEED_MORE_REVIEW", "INSUFFICIENT_DATA"] = "NEED_MORE_REVIEW"
+    label: str = ""
+    description: str = ""
+
+
 class MatchResponse(BaseModel):
     overall_score: int = Field(..., ge=0, le=100)
     skill_score: Optional[int] = Field(default=None, ge=0, le=100)
@@ -96,7 +120,11 @@ class MatchResponse(BaseModel):
     strengths: List[str] = Field(default_factory=list)
     weaknesses: List[str] = Field(default_factory=list)
     recommendations: List[str] = Field(default_factory=list)
+    structured_strengths: List[StructuredStrengthItem] = Field(default_factory=list)
+    missing_requirements: List[MissingRequirementItem] = Field(default_factory=list)
+    recommendation: Optional[RecommendationDetail] = None
+    confidence_detail: Optional[ConfidenceDetail] = None
     evidence_from_cv: List[EvidenceItem] = Field(default_factory=list)
 
     analysis_summary: str = ""
-    algorithm_version: str = "v1-nlp-tfidf"
+    algorithm_version: str = "v1.1-nlp-explain"

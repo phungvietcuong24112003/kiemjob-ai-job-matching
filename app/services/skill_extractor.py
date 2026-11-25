@@ -32,6 +32,7 @@ class JdSkillRequirement:
     category: SkillCategory
     is_required: bool
     source: str  # "db" | "jd_text"
+    jd_sentence: Optional[str] = None
 
 
 class SkillExtractor:
@@ -196,15 +197,25 @@ class SkillExtractor:
                         category=item.category,
                         is_required=is_req,
                         source="jd_text",
+                        jd_sentence=sent,
                     )
                 else:
-                    # Nếu xuất hiện ở cả câu bắt buộc và ưu tiên -> ưu tiên giữ là required
-                    if existing.source == "jd_text" and is_req and not existing.is_required:
+                    # Nếu xuất hiện ở db nhưng chưa có câu mô tả JD -> bổ sung jd_sentence để giải thích
+                    if existing.jd_sentence is None:
+                        skill_map[item.name] = JdSkillRequirement(
+                            name=existing.name,
+                            category=existing.category,
+                            is_required=existing.is_required or is_req,
+                            source=existing.source,
+                            jd_sentence=sent,
+                        )
+                    elif existing.source == "jd_text" and is_req and not existing.is_required:
                         skill_map[item.name] = JdSkillRequirement(
                             name=item.name,
                             category=item.category,
                             is_required=True,
                             source="jd_text",
+                            jd_sentence=sent,
                         )
 
         return list(skill_map.values())
