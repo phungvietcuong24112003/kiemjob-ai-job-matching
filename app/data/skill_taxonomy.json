@@ -1,0 +1,147 @@
+{
+  "synonyms": {
+    "core java": "java",
+    "java core": "java",
+    "springboot": "spring boot",
+    "spring-boot": "spring boot",
+    "spring framework": "spring boot",
+    "js": "javascript",
+    "ecmascript": "javascript",
+    "es6": "javascript",
+    "ts": "typescript",
+    "reactjs": "react",
+    "react.js": "react",
+    "react js": "react",
+    "vuejs": "vue",
+    "vue.js": "vue",
+    "vue js": "vue",
+    "angularjs": "angular",
+    "angular.js": "angular",
+    "nextjs": "next.js",
+    "nuxtjs": "nuxt.js",
+    "nodejs": "node.js",
+    "node": "node.js",
+    "expressjs": "express",
+    "express.js": "express",
+    "nestjs": "nest.js",
+    "restful": "rest api",
+    "restful api": "rest api",
+    "rest apis": "rest api",
+    "restful apis": "rest api",
+    "dotnet": ".net",
+    "asp.net core": "asp.net",
+    "csharp": "c#",
+    "cpp": "c++",
+    "py": "python",
+    "golang": "go",
+    "postgres": "postgresql",
+    "postgre sql": "postgresql",
+    "postgre": "postgresql",
+    "mssql": "sql server",
+    "ms sql": "sql server",
+    "k8s": "kubernetes",
+    "amazon web services": "aws",
+    "google cloud platform": "gcp",
+    "google cloud": "gcp",
+    "cicd": "ci/cd",
+    "ci cd": "ci/cd",
+    "gh actions": "github actions",
+    "tailwind": "tailwindcss",
+    "tailwind css": "tailwindcss",
+    "scss": "sass",
+    "html5": "html",
+    "css3": "css",
+    "sklearn": "scikit-learn",
+    "ml": "machine learning",
+    "dl": "deep learning",
+    "cv": "computer vision",
+    "fe": "frontend",
+    "be": "backend",
+    "qc": "qa/qc",
+    "qa": "qa/qc",
+    "automation testing": "automation test",
+    "manual testing": "manual test",
+    "unit testing": "unit test",
+    "ba": "business analysis",
+    "phân tích nghiệp vụ": "business analysis",
+    "chuyên viên phân tích nghiệp vụ": "business analysis",
+    "pm": "project management",
+    "quản lý dự án": "project management",
+    "po": "product owner",
+    "misa sme": "misa",
+    "báo cáo thuế": "kế toán thuế",
+    "kê khai thuế": "kế toán thuế",
+    "tiếng anh giao tiếp": "tiếng anh",
+    "english": "tiếng anh",
+    "làm việc nhóm": "teamwork"
+  },
+  "taxonomy": {
+    "core_skills": {
+      "it_backend": [
+        "java", "spring boot", "spring mvc", "spring security", "hibernate", "jpa",
+        "c#", ".net", ".net core", "asp.net", "python", "django", "flask", "fastapi",
+        "node.js", "express", "nest.js", "php", "laravel", "symfony", "ruby",
+        "ruby on rails", "go", "rust", "scala", "c++", "c", "rest api", "graphql",
+        "grpc", "microservices", "oop", "design patterns", "websocket", "backend"
+      ],
+      "it_frontend": [
+        "javascript", "typescript", "html", "css", "sass", "tailwindcss", "bootstrap",
+        "react", "next.js", "vue", "nuxt.js", "angular", "svelte", "redux", "zustand",
+        "jquery", "frontend", "responsive design", "ui/ux"
+      ],
+      "it_mobile": [
+        "flutter", "react native", "swift", "swiftui", "kotlin", "android", "ios",
+        "objective-c", "dart"
+      ],
+      "it_ai_data": [
+        "machine learning", "deep learning", "nlp", "computer vision", "data analysis",
+        "data engineering", "scikit-learn", "pandas", "numpy", "tensorflow", "pytorch",
+        "spark", "hadoop", "etl", "r"
+      ],
+      "it_qa": [
+        "qa/qc", "unit test", "junit", "automation test", "manual test", "selenium",
+        "cypress", "playwright"
+      ],
+      "business_accounting_marketing": [
+        "business analysis", "project management", "product management", "product owner",
+        "kế toán tổng hợp", "kế toán thuế", "kế toán nội bộ", "kế toán kho",
+        "báo cáo tài chính", "kiểm toán", "phân tích tài chính", "quản trị dòng tiền",
+        "digital marketing", "seo", "sem", "google ads", "facebook ads", "tiktok ads",
+        "content marketing", "copywriting", "sales", "b2b", "b2c", "telesales",
+        "chăm sóc khách hàng", "nghiên cứu thị trường"
+      ]
+    },
+    "tools_and_tech": {
+      "database": [
+        "sql", "mysql", "postgresql", "sql server", "oracle", "mongodb", "redis",
+        "elasticsearch", "mariadb", "sqlite", "dynamodb", "neo4j", "prisma", "flyway"
+      ],
+      "devops_cloud": [
+        "docker", "kubernetes", "aws", "azure", "gcp", "ci/cd", "jenkins",
+        "gitlab ci", "github actions", "terraform", "ansible", "nginx", "linux",
+        "ubuntu", "git", "bitbucket", "kafka", "rabbitmq", "prometheus", "grafana"
+      ],
+      "tools_software": [
+        "postman", "jmeter", "jira", "confluence", "trello", "figma", "photoshop",
+        "illustrator", "vite", "webpack", "maven", "gradle", "misa", "fast",
+        "bravo", "excel", "power bi", "tableau", "crm", "hubspot"
+      ]
+    },
+    "supplementary_skills": {
+      "languages_and_soft": [
+        "tiếng anh", "ielts", "toeic", "tiếng nhật", "tiếng trung", "tiếng hàn",
+        "giao tiếp", "teamwork", "giải quyết vấn đề", "tư duy phản biện",
+        "quản lý thời gian", "thuyết trình", "đàm phán", "lãnh đạo",
+        "chịu áp lực", "agile", "scrum", "kanban"
+      ]
+    }
+  },
+  "short_ambiguous_skills": {
+    "c": ["lập trình c", "ngôn ngữ c", "c/c++", "c language", "embedded", "firmware", "pointer"],
+    "r": ["ngôn ngữ r", "r studio", "rstudio", "r programming", "thống kê", "data", "statistics"],
+    "go": ["golang", "go lang", "gin", "echo", "fiber", "backend", "microservices", "api"],
+    "qa": ["tester", "test", "kiểm thử", "qc", "bug", "qa/qc"],
+    "ba": ["business analyst", "business analysis", "phân tích nghiệp vụ", "srs", "user story"],
+    "cv": ["computer vision", "opencv", "xử lý ảnh", "yolo"]
+  }
+}

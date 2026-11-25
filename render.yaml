@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: ai-cv-job-matching
+    env: python
+    region: singapore
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: INTERNAL_SECRET_KEY
+        generateValue: true
+      - key: ALGORITHM_VERSION
+        value: v1-nlp-tfidf
