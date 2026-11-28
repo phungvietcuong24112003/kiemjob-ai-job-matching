@@ -22,6 +22,7 @@ class JobInput(BaseModel):
     category: Optional[str] = None
     specializations: List[str] = Field(default_factory=list)
     required_skills_from_db: List[str] = Field(default_factory=list)
+    explicit_required_skills: List[str] = Field(default_factory=list)
     education_requirement: Optional[str] = None
     working_mode: Optional[str] = None
     location: Optional[str] = None
@@ -44,6 +45,7 @@ class SkillMatchItem(BaseModel):
     name: str
     category: SkillCategory
     is_required: bool = True
+    source: Optional[Literal["db", "jd_text"]] = None
     evidence_status: EvidenceStatus
     evidence_type: EvidenceType = None
     evidence: Optional[str] = None
@@ -113,6 +115,7 @@ class MatchResponse(BaseModel):
     missing_skills: List[SkillMatchItem] = Field(default_factory=list)
     required_skills: List[SkillMatchItem] = Field(default_factory=list)
     preferred_skills: List[SkillMatchItem] = Field(default_factory=list)
+    explicit_required_skills: List[SkillMatchItem] = Field(default_factory=list)
 
     experience_evaluation: ExperienceEvaluation
     education_evaluation: EducationEvaluation

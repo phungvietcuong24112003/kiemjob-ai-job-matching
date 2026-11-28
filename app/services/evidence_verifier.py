@@ -92,8 +92,12 @@ class EvidenceVerifier:
         if len(norm) >= 5 and not is_short:
             best_sent = None
             best_score = 0.0
+            is_multi_word = len(norm.split()) >= 2
             for sent in original_sentences:
-                score = fuzz.partial_ratio(norm, sent.lower())
+                sent_low = sent.lower()
+                score = fuzz.partial_ratio(norm, sent_low)
+                if is_multi_word:
+                    score = max(score, fuzz.token_set_ratio(norm, sent_low))
                 if score >= self.FUZZY_EVIDENCE_THRESHOLD and score > best_score:
                     best_score = score
                     best_sent = sent
@@ -138,6 +142,7 @@ class EvidenceVerifier:
                         name=req.name,
                         category=req.category,
                         is_required=req.is_required,
+                        source=req.source,
                         evidence_status="insufficient_data",
                         evidence_type=None,
                         evidence=None,
@@ -157,6 +162,7 @@ class EvidenceVerifier:
                         name=req.name,
                         category=req.category,
                         is_required=req.is_required,
+                        source=req.source,
                         evidence_status="evidenced",
                         evidence_type="direct_quote",
                         evidence=quote,
@@ -178,6 +184,7 @@ class EvidenceVerifier:
                         name=req.name,
                         category=req.category,
                         is_required=req.is_required,
+                        source=req.source,
                         evidence_status="unclear_evidence",
                         evidence_type="direct_quote",
                         evidence=quote,
@@ -199,6 +206,7 @@ class EvidenceVerifier:
                         name=req.name,
                         category=req.category,
                         is_required=req.is_required,
+                        source=req.source,
                         evidence_status="unclear_evidence",
                         evidence_type="fuzzy_match",
                         evidence=quote,
@@ -220,6 +228,7 @@ class EvidenceVerifier:
                         name=req.name,
                         category=req.category,
                         is_required=req.is_required,
+                        source=req.source,
                         evidence_status="unclear_evidence",
                         evidence_type=None,
                         evidence=None,
@@ -234,6 +243,7 @@ class EvidenceVerifier:
                         name=req.name,
                         category=req.category,
                         is_required=req.is_required,
+                        source=req.source,
                         evidence_status="not_found",
                         evidence_type=None,
                         evidence=None,

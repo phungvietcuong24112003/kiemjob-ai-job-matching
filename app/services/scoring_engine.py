@@ -51,7 +51,12 @@ class ScoringEngine:
 
     @classmethod
     def compute_skill_group_score(cls, items: List[SkillMatchItem]) -> Optional[int]:
-        """Tính điểm cho 1 nhóm kỹ năng, phân biệt bắt buộc (80%) và ưu tiên (20%)."""
+        """
+        Tính điểm cho 1 nhóm kỹ năng:
+        - Phân biệt bắt buộc (80%) và ưu tiên (20%).
+        - Trong nhóm bắt buộc, ưu tiên kỹ năng NTD chỉ định trực tiếp từ bài đăng (source='db': 70%)
+          so với kỹ năng AI tự trích xuất từ văn bản JD (source='jd_text': 30%).
+        """
         if not items:
             return None
 
@@ -63,10 +68,17 @@ class ScoringEngine:
                 return 0.0
             return sum(cls.STATUS_COEF.get(i.evidence_status, 0.0) for i in group) / len(group)
 
+        def required_coef(group: List[SkillMatchItem]) -> float:
+            explicit = [i for i in group if i.source == "db"]
+            from_jd = [i for i in group if i.source != "db"]
+            if explicit and from_jd:
+                return 0.70 * avg_coef(explicit) + 0.30 * avg_coef(from_jd)
+            return avg_coef(group)
+
         if required and preferred:
-            ratio = 0.80 * avg_coef(required) + 0.20 * avg_coef(preferred)
+            ratio = 0.80 * required_coef(required) + 0.20 * avg_coef(preferred)
         elif required:
-            ratio = avg_coef(required)
+            ratio = required_coef(required)
         else:
             ratio = avg_coef(preferred)
 
@@ -123,7 +135,11 @@ class ScoringEngine:
 
         jd_combined = "\n".join(part for part in [jd_title, jd_desc, jd_reqs] if part).strip()
         cv_sufficient = len(cv_raw.strip()) >= 50
-        jd_sufficient = len(jd_combined.strip()) >= 20 or len(request.job.required_skills_from_db) > 0
+        jd_sufficient = (
+            len(jd_combined.strip()) >= 20
+            or len(request.job.required_skills_from_db) > 0
+            or len(request.job.explicit_required_skills) > 0
+        )
         data_sufficient = cv_sufficient and jd_sufficient
 
         if not data_sufficient:
@@ -166,6 +182,7 @@ class ScoringEngine:
             description=jd_desc,
             requirements=jd_reqs,
             required_skills_from_db=request.job.required_skills_from_db,
+            explicit_required_skills=request.job.explicit_required_skills,
         )
 
         # 2. Kiểm chứng từng kỹ năng trên CV gốc
@@ -252,6 +269,7 @@ class ScoringEngine:
         missing_skills = [i for i in skill_items if i.evidence_status in ("not_found", "insufficient_data")]
         required_skills = [i for i in skill_items if i.is_required]
         preferred_skills = [i for i in skill_items if not i.is_required]
+        explicit_required_skills = [i for i in skill_items if i.source == "db"]
 
         jd_sentence_map = {s.name: s.jd_sentence for s in jd_skills}
 
@@ -296,6 +314,7 @@ class ScoringEngine:
             missing_skills=missing_skills,
             required_skills=required_skills,
             preferred_skills=preferred_skills,
+            explicit_required_skills=explicit_required_skills,
             experience_evaluation=exp_out.evaluation,
             education_evaluation=edu_out.evaluation,
             strengths=strengths,

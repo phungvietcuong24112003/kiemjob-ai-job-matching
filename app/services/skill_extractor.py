@@ -17,6 +17,24 @@ _PREFERRED_PATTERNS = re.compile(
     r"preferred|nice\s+to\s+have|nice-to-have|plus|bonus|optional|advantage)\b"
 )
 
+_REQUIRED_HEADER_RE = re.compile(
+    r"(?i)^(yêu\s*cầu\s*(bắt\s*buộc|công\s*việc|chuyên\s*môn)?|required|requirements|must\s+have)\s*:?$"
+)
+_PREFERRED_HEADER_RE = re.compile(
+    r"(?i)^(ưu\s*tiên|điểm\s*cộng|lợi\s*thế|preferred|nice\s+to\s+have|bonus)\s*:?$"
+)
+
+_SUPPLEMENTARY_CUSTOM_KEYWORDS = (
+    "giao tiếp", "teamwork", "làm việc nhóm", "thuyết trình", "đàm phán",
+    "quản lý thời gian", "chịu áp lực", "giải quyết vấn đề", "tin học văn phòng",
+    "tiếng anh", "tiếng nhật", "tiếng trung", "tiếng hàn", "ngoại ngữ", "agile", "scrum"
+)
+_TOOLS_CUSTOM_KEYWORDS = (
+    "misa", "sap", "erp", "crm", "spss", "stata", "power bi", "tableau",
+    "figma", "canva", "photoshop", "illustrator", "autocad", "solidworks",
+    "excel", "word", "powerpoint", "google analytics", "jira", "notion"
+)
+
 
 @dataclass(frozen=True)
 class ExtractedSkill:
@@ -111,9 +129,15 @@ class SkillExtractor:
         return cleaned
 
     def get_category(self, canonical_skill: str) -> SkillCategory:
-        """Trả về đúng 1 nhóm duy nhất của kỹ năng; mặc định core_skills nếu là skill tùy chỉnh từ DB."""
+        """Trả về đúng 1 nhóm duy nhất của kỹ năng; phân loại thông minh cho kỹ năng tùy chỉnh từ DB."""
         norm = self.normalize_skill(canonical_skill)
-        return self.skill_to_category.get(norm, "core_skills")
+        if norm in self.skill_to_category:
+            return self.skill_to_category[norm]
+        if any(kw in norm for kw in _SUPPLEMENTARY_CUSTOM_KEYWORDS):
+            return "supplementary_skills"
+        if any(kw in norm for kw in _TOOLS_CUSTOM_KEYWORDS):
+            return "tools_and_tech"
+        return "core_skills"
 
     def _has_short_skill_context(self, text_lower: str, skill: str, match_start: int, match_end: int) -> bool:
         """Kiểm tra ngữ cảnh cho các kỹ năng ngắn dễ nhầm (c, r, go, qa, ba, cv)."""
@@ -159,16 +183,18 @@ class SkillExtractor:
         description: str = "",
         requirements: str = "",
         required_skills_from_db: Optional[List[str]] = None,
+        explicit_required_skills: Optional[List[str]] = None,
     ) -> List[JdSkillRequirement]:
         """
         Trích xuất và phân loại kỹ năng yêu cầu từ JD (Required vs Preferred)
-        kết hợp với danh sách kỹ năng có cấu trúc từ bảng `job_skills` trong DB.
+        kết hợp với danh sách kỹ năng có cấu trúc từ bài đăng (`required_skills` / `job_skills`).
         """
         skill_map: Dict[str, JdSkillRequirement] = {}
 
-        # 1. Kỹ năng có cấu trúc từ DB (job_skills) mặc định là bắt buộc
-        if required_skills_from_db:
-            for raw in required_skills_from_db:
+        # 1. Kỹ năng bắt buộc NTD chỉ định trực tiếp (ưu tiên explicit_required_skills, fallback required_skills_from_db)
+        db_inputs = explicit_required_skills if explicit_required_skills else required_skills_from_db
+        if db_inputs:
+            for raw in db_inputs:
                 norm = self.normalize_skill(raw)
                 if not norm:
                     continue
@@ -179,14 +205,23 @@ class SkillExtractor:
                     source="db",
                 )
 
-        # 2. Quét từng câu trong requirements và description
+        # 2. Quét từng câu trong requirements và description (nhận diện ngữ cảnh mục Ưu tiên)
         combined_sentences = (
             TextProcessor.split_sentences(requirements or "")
             + TextProcessor.split_sentences(description or "")
         )
 
+        in_preferred_section = False
         for sent in combined_sentences:
-            is_preferred_sentence = bool(_PREFERRED_PATTERNS.search(sent))
+            stripped = sent.strip()
+            if _PREFERRED_HEADER_RE.match(stripped):
+                in_preferred_section = True
+                continue
+            if _REQUIRED_HEADER_RE.match(stripped):
+                in_preferred_section = False
+                continue
+
+            is_preferred_sentence = in_preferred_section or bool(_PREFERRED_PATTERNS.search(sent))
             extracted = self.extract_skills_from_text(sent)
             for item in extracted:
                 is_req = not is_preferred_sentence
